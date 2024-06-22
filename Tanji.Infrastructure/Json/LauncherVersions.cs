@@ -7,8 +7,8 @@ namespace Tanji.Infrastructure.Json;
 
 public readonly record struct PlatformCheck
 {
-    public required string Version { get; init; }
-    public required string Path { get; init; }
+    public string Version { get; init; }
+    public string Path { get; init; }
 }
 public readonly record struct Installation
 {
