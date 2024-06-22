@@ -33,6 +33,7 @@ public sealed class PlatformConverter : JsonConverter<HPlatform>
     {
         "flash" or "air" => HPlatform.Flash,
         "unity" => HPlatform.Unity,
+        "shockwave" => HPlatform.Shockwave,
         _ => HPlatform.Unknown
     };
 }

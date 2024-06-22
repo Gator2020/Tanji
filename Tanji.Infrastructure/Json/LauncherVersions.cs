@@ -26,6 +26,7 @@ public readonly record struct UpdateCheck
 {
     public required PlatformCheck Unity { get; init; }
     public required PlatformCheck Air { get; init; }
+    public required PlatformCheck Shockwave { get; init; }
 
     [JsonConverter(typeof(EpochDateTimeConverter))]
     public required DateTime Time { get; init; }
