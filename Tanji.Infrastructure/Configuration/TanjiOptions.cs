@@ -25,7 +25,6 @@ public sealed class TanjiOptions
     public required string[] ProxyOverrides { get; init; }
 
     public required bool IsUsingAirDebugLauncher { get; init; }
-    public required string AirDebugLauncherFilePath { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.Always)]
     public LauncherVersions Versions { get; internal set; }

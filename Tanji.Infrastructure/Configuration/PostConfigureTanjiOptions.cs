@@ -17,8 +17,6 @@ internal sealed class PostConfigureTanjiOptions : IPostConfigureOptions<TanjiOpt
         var versionsFileInfo = new FileInfo(Path.Combine(options.LauncherPath, "versions.json"));
         if (!versionsFileInfo.Exists) return;
 
-        options.AirDebugLauncherFilePath = Environment.ExpandEnvironmentVariables(options.AirDebugLauncherFilePath);
-
         using var versionsFileStream = File.OpenRead(versionsFileInfo.FullName);
         options.Versions = JsonSerializer.Deserialize<LauncherVersions>(versionsFileStream,
             new JsonSerializerOptions()

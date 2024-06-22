@@ -171,17 +171,22 @@ public sealed class ClientHandlerService : IClientHandlerService
     }
     private async Task<Process> LaunchFlashClientAsync(PlatformPaths paths, string ticket)
     {
-        ProcessStartInfo info = !string.IsNullOrWhiteSpace(_options.AirDebugLauncherFilePath) && _options.IsUsingAirDebugLauncher
-            ? new ProcessStartInfo(_options.AirDebugLauncherFilePath)
-            {
-                UseShellExecute = false,
-                CreateNoWindow = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                WorkingDirectory = paths.RootPath,
-                Arguments = $"\".\\META-INF\\AIR\\application.xml\" root-dir . -- server {ticket[..4]} ticket {ticket[5..]}"
-            }
-            : new ProcessStartInfo(paths.ExecutablePath, $"server {ticket[..4]} ticket {ticket[5..]}");
+        var info = new ProcessStartInfo();
+        if (_options.IsUsingAirDebugLauncher)
+        {
+            info.FileName = "adl.exe";
+            info.CreateNoWindow = false;
+            info.UseShellExecute = false;
+            info.RedirectStandardError = true;
+            info.RedirectStandardOutput = true;
+            info.WorkingDirectory = paths.RootPath;
+            info.Arguments = $"\".\\META-INF\\AIR\\application.xml\" root-dir . -- server {ticket[..4]} ticket {ticket[5..]}";
+        }
+        else
+        {
+            info.FileName = paths.ExecutablePath;
+            info.Arguments = $"server {ticket[..4]} ticket {ticket[5..]}";
+        }
 
         var launcherProcess = new Process
         {
