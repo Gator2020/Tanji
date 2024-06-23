@@ -70,7 +70,7 @@ public sealed class EavesdropInterceptionService : IWebInterceptionService
 
     public ValueTask<string> InterceptTicketAsync(CancellationToken cancellationToken = default)
     {
-        TryStartWebTrafficInterception(_logger, _options.ProxyListenPort);
+        Start();
         return _ticketsChannel.Reader.ReadAsync(cancellationToken);
     }
 
@@ -123,17 +123,5 @@ public sealed class EavesdropInterceptionService : IWebInterceptionService
         }
 
         return false;
-    }
-    private static bool TryStartWebTrafficInterception(ILogger<EavesdropInterceptionService> logger, int proxyListenPort)
-    {
-        if (Eavesdropper.IsRunning) return true;
-        if (!Eavesdropper.Certifier?.CreateTrustedRootCertificate() ?? false)
-        {
-            logger.LogWarning("User declined root certificate installation.");
-            return false;
-        }
-
-        Eavesdropper.Initiate(proxyListenPort);
-        return true;
     }
 }
