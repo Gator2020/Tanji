@@ -34,7 +34,7 @@ public sealed class RemoteHotelEndPointResolverService : IRemoteEndPointResolver
         }
 
         // TODO: Adjust port based on platform
-        return new HotelEndPoint(addresses[0], 30001, host)
+        return new HotelEndPoint(addresses[0], 30000, host)
         {
             Hotel = hotel
         };
