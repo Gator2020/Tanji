@@ -162,7 +162,7 @@ public sealed class HNode : IDisposable
             Memory<byte> header = buffer.Slice(0, ReceivePacketFormat.MinBufferSize);
 
             totalReceived = await ReadFromStreamAsync(header, cancellationToken).ConfigureAwait(false);
-            if (!ReceivePacketFormat.TryReadHeader(header.Span, out int length, out short id, out _)) return -1;
+            if (totalReceived < 1 || !ReceivePacketFormat.TryReadHeader(header.Span, out int length, out short id, out _)) return -1;
 
             if (DecryptCipher != null)
             {
@@ -175,12 +175,13 @@ public sealed class HNode : IDisposable
             if (bodyAvailable > buffer.Length - ReceivePacketFormat.MinBufferSize)
             {
                 buffer = writer.GetMemory(bodyAvailable);
+                totalReceived -= ReceivePacketFormat.MinBufferSize;
             }
 
             int bodyReceived = 0;
             while (bodyAvailable > 0)
             {
-                Memory<byte> availableBuffer = buffer.Slice(totalReceived - ReceivePacketFormat.MinBufferSize, bodyAvailable);
+                Memory<byte> availableBuffer = buffer.Slice(totalReceived, bodyAvailable);
                 bodyReceived = await ReadFromStreamAsync(availableBuffer, cancellationToken).ConfigureAwait(false);
 
                 bodyAvailable -= bodyReceived;
@@ -189,12 +190,12 @@ public sealed class HNode : IDisposable
 
             if (DecryptCipher != null)
             {
-                Encipher(DecryptCipher, buffer.Slice(0, totalReceived - ReceivePacketFormat.MinBufferSize), IsWebSocket);
+                Encipher(DecryptCipher, buffer.Slice(0, bodyReceived), IsWebSocket);
             }
-            writer.Advance(totalReceived - ReceivePacketFormat.MinBufferSize);
+            writer.Advance(bodyReceived);
         }
         finally { _receiveSemaphore.Release(); }
-        return totalReceived;
+        return ReceivePacketFormat.MinBufferSize - ReceivePacketFormat.MinPacketLength + totalReceived;
     }
 
     public async Task<bool> UpgradeToWebSocketClientAsync(X509Certificate? certificate, CancellationToken cancellationToken = default)
