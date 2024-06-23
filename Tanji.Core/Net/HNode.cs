@@ -282,9 +282,6 @@ public sealed class HNode : IDisposable
             responseWritten += 4; // \r\n\r\n
         }
 
-        // TODO: Is this check still needed?
-        //if (IsUpgraded || !await DetermineFormatsAsync(cancellationToken).ConfigureAwait(false)) return IsUpgraded;
-
         using var receivedOwner = MemoryOwner<byte>.Allocate(1024);
         int received = await ReceiveAsync(receivedOwner.Memory, cancellationToken).ConfigureAwait(false);
 
