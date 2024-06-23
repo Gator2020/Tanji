@@ -33,6 +33,7 @@ public sealed class HNode : IDisposable
     public EndPoint? RemoteEndPoint { get; }
     public int BypassReceiveSecureTunnel { get; set; }
 
+    public bool IsDisposed => _disposed;
     public bool IsUpgraded { get; private set; }
     public bool IsWebSocket => _webSocketStream != null;
     public bool IsConnected => !_disposed && _socket.Connected;
