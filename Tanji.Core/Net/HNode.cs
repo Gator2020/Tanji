@@ -36,7 +36,7 @@ public sealed class HNode : IDisposable
     public bool IsDisposed => _disposed;
     public bool IsUpgraded { get; private set; }
     public bool IsWebSocket => _webSocketStream != null;
-    public bool IsConnected => !_disposed && _socket.Connected;
+    public bool IsConnected => !_disposed && _socketStream.CanRead;
 
     public IStreamCipher? EncryptCipher { get; set; }
     public IStreamCipher? DecryptCipher { get; set; }
