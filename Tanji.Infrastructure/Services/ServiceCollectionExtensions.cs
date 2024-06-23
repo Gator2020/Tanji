@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 
 using Tanji.Core.Net;
+using Tanji.Core.Net.Interception;
 using Tanji.Infrastructure.Factories;
 using Tanji.Infrastructure.ViewModels;
 using Tanji.Infrastructure.Configuration;

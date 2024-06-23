@@ -7,6 +7,7 @@ using System.Collections.ObjectModel;
 using Tanji.Core;
 using Tanji.Core.Net;
 using Tanji.Core.Canvas;
+using Tanji.Core.Net.Interception;
 using Tanji.Infrastructure.Factories;
 using Tanji.Infrastructure.Configuration;
 

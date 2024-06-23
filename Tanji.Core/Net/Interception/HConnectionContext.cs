@@ -3,7 +3,7 @@
 using Tanji.Core.Canvas;
 using Tanji.Core.Net.Formats;
 
-namespace Tanji.Core.Net;
+namespace Tanji.Core.Net.Interception;
 
 public readonly record struct HConnectionContext
 {

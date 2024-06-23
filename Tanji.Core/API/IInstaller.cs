@@ -1,5 +1,5 @@
-﻿using Tanji.Core.Net;
-using Tanji.Core.Canvas;
+﻿using Tanji.Core.Canvas;
+using Tanji.Core.Net.Interception;
 
 namespace Tanji.Core.API;
 

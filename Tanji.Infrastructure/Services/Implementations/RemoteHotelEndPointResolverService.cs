@@ -5,6 +5,7 @@ using Tanji.Core.Net;
 using Tanji.Core.Canvas;
 using Tanji.Core.Net.Buffers;
 using Tanji.Core.Net.Formats;
+using Tanji.Core.Net.Interception;
 
 using CommunityToolkit.HighPerformance.Buffers;
 

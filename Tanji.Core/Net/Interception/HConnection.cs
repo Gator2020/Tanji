@@ -2,7 +2,7 @@
 
 using CommunityToolkit.HighPerformance.Buffers;
 
-namespace Tanji.Core.Net;
+namespace Tanji.Core.Net.Interception;
 
 public sealed class HConnection : IDisposable
 {

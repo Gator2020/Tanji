@@ -1,4 +1,4 @@
-﻿namespace Tanji.Core.Net;
+﻿namespace Tanji.Core.Net.Interception;
 
 public interface IMiddleman
 {

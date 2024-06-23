@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 
-namespace Tanji.Core.Net;
+namespace Tanji.Core.Net.Interception;
 
 public sealed class ConnectedEventArgs : CancelEventArgs
 {

@@ -2,7 +2,7 @@
 using Tanji.Core.Net.Formats;
 using Tanji.Core.Net.Messages;
 
-namespace Tanji.Core.Net;
+namespace Tanji.Core.Net.Interception;
 
 /// <summary>
 /// Represents an intercepted message that will be returned to the caller with blocking/replacing information.

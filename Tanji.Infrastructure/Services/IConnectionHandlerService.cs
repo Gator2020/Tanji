@@ -1,6 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 
-using Tanji.Core.Net;
+using Tanji.Core.Net.Interception;
 
 namespace Tanji.Infrastructure.Services;
 
