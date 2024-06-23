@@ -63,17 +63,19 @@ public class Program
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        _webInterception.Start();
         _logger.LogInformation("Intercepting Game Token(s)...");
         do
         {
             string ticket = true ? "hhus.ABC.v4" : await _webInterception.InterceptTicketAsync(cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("Game Ticket: {ticket}", ticket);
+            _logger.LogInformation("Ticket Acquired: {ticket}", ticket);
+            _webInterception.Stop();
 
             IGame game = await _clientHandler.PatchClientAsync(HPlatform.Flash).ConfigureAwait(false);
-            _logger.LogInformation("Client Patched : {game.path}", game.Path);
-
             var context = new HConnectionContext(game);
-            _ = await _connectionHandler.LaunchAndInterceptConnectionAsync(ticket, context, cancellationToken).ConfigureAwait(false);
+
+            HConnection connection = await _connectionHandler.LaunchAndInterceptConnectionAsync(ticket, context, cancellationToken);
+            await connection.AttachNodesAsync(cancellationToken).ConfigureAwait(false);
         }
         while (!cancellationToken.IsCancellationRequested);
     }
