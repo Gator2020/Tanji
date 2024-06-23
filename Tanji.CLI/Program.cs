@@ -44,8 +44,8 @@ public class Program
     #endregion
 
     private readonly ILogger<Program> _logger;
-    private readonly IWebInterceptionService _webInterception;
     private readonly IClientHandlerService _clientHandler;
+    private readonly IWebInterceptionService _webInterception;
     private readonly IConnectionHandlerService _connectionHandler;
 
     public Program(ILogger<Program> logger,
