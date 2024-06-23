@@ -4,5 +4,5 @@ namespace Tanji.Infrastructure.Factories;
 
 public interface IConnectionFactory
 {
-    IHConnection Create(HConnectionContext context);
+    HConnection Create(HNode local, HNode remote, HConnectionContext context);
 }

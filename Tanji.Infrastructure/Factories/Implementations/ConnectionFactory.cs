@@ -1,23 +1,21 @@
 ﻿using Tanji.Core.Net;
-using Tanji.Core.Canvas;
 
 namespace Tanji.Infrastructure.Factories.Implementations;
 
 public sealed class ConnectionFactory : IConnectionFactory
 {
+    private readonly IMiddleman _middleman;
     private readonly IServiceProvider _services;
 
-    public ConnectionFactory(IServiceProvider services)
+    public ConnectionFactory(IServiceProvider services, IMiddleman middleman)
     {
         _services = services;
+        _middleman = middleman;
     }
 
-    public IHConnection Create(HConnectionContext context)
+    // TODO: Apply Module/Pre-Processing Services to all HConnection instances.
+    public HConnection Create(HNode local, HNode remote, HConnectionContext context)
     {
-        return context.Platform switch
-        {
-            HPlatform.Flash => new HConnection(context),
-            _ => throw new NotSupportedException($"{context.Platform} is currently not a supported platform.")
-        };
+        return new HConnection(local, remote, _middleman, context);
     }
 }
