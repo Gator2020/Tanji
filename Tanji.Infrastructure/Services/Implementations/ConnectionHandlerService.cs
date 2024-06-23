@@ -82,6 +82,30 @@ public sealed class ConnectionHandlerService : IConnectionHandlerService
         return connection;
     }
 
+    private static async ValueTask<Socket> AcceptAsync(int port, CancellationToken cancellationToken = default)
+    {
+        using var listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        listenSocket.Bind(new IPEndPoint(IPAddress.Any, port));
+        listenSocket.LingerState = new LingerOption(false, 0);
+        listenSocket.Listen(1);
+
+        return await listenSocket.AcceptAsync(cancellationToken).ConfigureAwait(false);
+    }
+    private static async ValueTask<Socket> ConnectAsync(EndPoint remoteEndPoint, CancellationToken cancellationToken = default)
+    {
+        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        try
+        {
+            await socket.ConnectAsync(remoteEndPoint, cancellationToken).ConfigureAwait(false);
+        }
+        catch { /* Ignore all exceptions. */ }
+        if (!socket.Connected)
+        {
+            socket.Shutdown(SocketShutdown.Both);
+            socket.Close();
+        }
+        return socket;
+    }
     private static async ValueTask<bool> TryApplyProxyAsync(HNode proxiedNode, IPEndPoint targetEndPoint, string? username, string? password, CancellationToken cancellationToken = default)
     {
         await proxiedNode.SendAsync(new byte[]
