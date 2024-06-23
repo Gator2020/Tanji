@@ -1,6 +1,4 @@
-﻿using System.Net;
-using System.Text;
-using System.Net.Sockets;
+﻿using System.Diagnostics.CodeAnalysis;
 
 using CommunityToolkit.HighPerformance.Buffers;
 
@@ -8,24 +6,26 @@ namespace Tanji.Core.Net;
 
 public sealed class HConnection : IDisposable
 {
-    private static ReadOnlySpan<byte> XDPRequestBytes => "<policy-file-request/>\0"u8;
-    private static readonly ReadOnlyMemory<byte> XDPResponseBytes = Encoding.UTF8.GetBytes("<cross-domain-policy><allow-access-from domain=\"*\" to-ports=\"*\"/></cross-domain-policy>\0");
-
     private Task? _weldTask;
-    private CancellationTokenSource? _interceptCancellationSource;
-
-    public HNode? Local { get; private set; }
-    public HNode? Remote { get; private set; }
 
     public int TotalInboundPackets { get; }
     public int TotalOutboundPackets { get; }
-    public bool IsConnected => Local != null && Remote != null && Local.IsConnected & Remote.IsConnected;
 
-    public HConnectionContext Context { get; }
+    public bool IsDisposed => Local.IsDisposed || Remote.IsDisposed;
+    public bool IsConnected => Local.IsConnected && Remote.IsConnected;
 
-    public HConnection(HConnectionContext context)
+    public required HNode Local { get; init; }
+    public required HNode Remote { get; init; }
+    public required IMiddleman Middleman { get; init; }
+    public required HConnectionContext Context { get; init; }
+
+    [SetsRequiredMembers]
+    public HConnection(HNode local, HNode remote, IMiddleman middleman, HConnectionContext context)
     {
+        Local = local;
+        Remote = remote;
         Context = context;
+        Middleman = middleman;
     }
 
     public Task AttachNodesAsync(CancellationToken cancellationToken = default)
@@ -35,86 +35,9 @@ public sealed class HConnection : IDisposable
             return _weldTask;
         }
 
-        Task localToRemote = AttachNodesAsync(Local!, Remote!, true, cancellationToken);
-        Task remoteToLocal = AttachNodesAsync(Remote!, Local!, false, cancellationToken);
+        Task localToRemote = AttachNodesAsync(Local, Remote, true, Middleman, cancellationToken);
+        Task remoteToLocal = AttachNodesAsync(Remote, Local, false, Middleman, cancellationToken);
         return _weldTask = Task.WhenAll(localToRemote, remoteToLocal);
-    }
-    public async Task InterceptLocalConnectionAsync(CancellationToken cancellationToken = default)
-    {
-        /* Reset the cancellation token. */
-        CancelAndNullifySource(ref _interceptCancellationSource);
-        _interceptCancellationSource = new CancellationTokenSource();
-
-        /* Link both the internal, and user provided cancellation tokens with one another. */
-        CancellationTokenSource? linkedInterceptCancellationSource = null;
-        if (cancellationToken != default)
-        {
-            linkedInterceptCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_interceptCancellationSource.Token, cancellationToken);
-            cancellationToken = linkedInterceptCancellationSource.Token; // This token will also 'cancel' when the Dispose or Disconnect method of this type is called.
-        }
-
-        try
-        {
-            int listenSkipAmount = Context.MinimumConnectionAttempts;
-            while ((Local == null || !Local.IsConnected) && !cancellationToken.IsCancellationRequested)
-            {
-                Socket localSocket = await AcceptAsync(Context.AppliedPatchingOptions.InjectedAddress!.Port, cancellationToken).ConfigureAwait(false);
-                Local = new HNode(localSocket, Context.ReceivePacketFormat);
-
-                if (--listenSkipAmount > 0)
-                {
-                    Local.Dispose();
-                    continue;
-                }
-
-                if (Context.IsWebSocketConnection)
-                {
-                    if (Context.WebSocketServerCertificate == null)
-                    {
-                        ThrowHelper.ThrowNullReferenceException("No certificate was provided for local authentication using the WebSocket Secure protocol.");
-                    }
-
-                    if (cancellationToken.IsCancellationRequested) return;
-                    await Local.UpgradeToWebSocketServerAsync(Context.WebSocketServerCertificate, cancellationToken).ConfigureAwait(false);
-                }
-
-                if (cancellationToken.IsCancellationRequested) return;
-                if (Context.IsFakingPolicyRequest)
-                {
-                    using MemoryOwner<byte> buffer = MemoryOwner<byte>.Allocate(512);
-
-                    int received = await Local.ReceiveAsync(buffer.Memory, cancellationToken).ConfigureAwait(false);
-                    if (cancellationToken.IsCancellationRequested) return;
-
-                    if (!buffer.Span.Slice(0, received).SequenceEqual(XDPRequestBytes))
-                    {
-                        ThrowHelper.ThrowNotSupportedException("Expected cross-domain policy request.");
-                    }
-
-                    await Local.SendAsync(XDPResponseBytes, cancellationToken).ConfigureAwait(false);
-                    Local.Dispose();
-                }
-            }
-        }
-        finally
-        {
-            if (Local != null && (!Local.IsConnected || cancellationToken.IsCancellationRequested))
-            {
-                Local.Dispose();
-            }
-            CancelAndNullifySource(ref _interceptCancellationSource);
-            CancelAndNullifySource(ref linkedInterceptCancellationSource);
-        }
-    }
-    public async Task EstablishRemoteConnectionAsync(IPEndPoint remoteEndPoint, CancellationToken cancellationToken = default)
-    {
-        Socket remoteSocket = await ConnectAsync(remoteEndPoint, cancellationToken).ConfigureAwait(false);
-        Remote = new HNode(remoteSocket, Context.ReceivePacketFormat);
-
-        if (Context.WebSocketServerCertificate != null)
-        {
-            await Remote.UpgradeToWebSocketClientAsync(cancellationToken).ConfigureAwait(false);
-        }
     }
 
     public void Dispose()
@@ -123,20 +46,17 @@ public sealed class HConnection : IDisposable
     }
     public void Disconnect()
     {
-        CancelAndNullifySource(ref _interceptCancellationSource);
-        if (Local != null)
+        if (!Local.IsDisposed)
         {
             Local.Dispose();
-            Local = null;
         }
-        if (Remote != null)
+        if (!Remote.IsDisposed)
         {
             Remote.Dispose();
-            Remote = null;
         }
     }
 
-    private async Task AttachNodesAsync(HNode source, HNode destination, bool isOutbound, CancellationToken cancellationToken = default)
+    private static async Task AttachNodesAsync(HNode source, HNode destination, bool isOutbound, IMiddleman middleman, CancellationToken cancellationToken = default)
     {
         int received;
         while (source.IsConnected && destination.IsConnected && !cancellationToken.IsCancellationRequested)
@@ -148,64 +68,29 @@ public sealed class HConnection : IDisposable
             if (received > 0)
             {
                 // Continuously attempt to receive packets from the node
-                _ = HandleInterceptedPacketAsync(received, source, destination, isOutbound, writer, cancellationToken);
+                _ = HandleInterceptedPacketAsync(source, destination, isOutbound, middleman, writer, received, cancellationToken);
             }
             else writer.Dispose();
         }
     }
-    private async Task HandleInterceptedPacketAsync(int received, HNode source, HNode destination, bool isOutbound, ArrayPoolBufferWriter<byte> writer, CancellationToken cancellationToken = default)
+    private static async Task HandleInterceptedPacketAsync(HNode source, HNode destination, bool isOutbound, IMiddleman middleman, ArrayPoolBufferWriter<byte> writer, int received, CancellationToken cancellationToken = default)
     {
         try
         {
             Memory<byte> buffer = writer.DangerousGetArray();
             if (buffer.Length != writer.WrittenCount || buffer.Length != received)
             { }
-            //if (Spooler != null)
-            //{
-            //    ValueTask<bool> packetProcessTask = isOutbound
-            //        ? Spooler.PacketOutboundAsync(buffer, source, destination)
-            //        : Spooler.PacketInboundAsync(buffer, source, destination);
+            if (middleman.IsInterceptingOutgoing && isOutbound || middleman.IsInterceptingIncoming && !isOutbound)
+            {
+                ValueTask<bool> packetProcessTask = isOutbound
+                    ? middleman.PacketOutboundAsync(buffer, source, destination)
+                    : middleman.PacketInboundAsync(buffer, source, destination);
 
-            //    // If true, the packet is to be ignored/blocked
-            //    if (await packetProcessTask.ConfigureAwait(false)) return;
-            //}
+                // If true, the packet is to be ignored/blocked
+                if (await packetProcessTask.ConfigureAwait(false)) return;
+            }
             await destination.SendPacketAsync(buffer, cancellationToken).ConfigureAwait(false);
         }
         finally { writer.Dispose(); }
-    }
-
-    private static void CancelAndNullifySource(ref CancellationTokenSource? cancellationTokenSource)
-    {
-        if (cancellationTokenSource == null) return;
-        if (!cancellationTokenSource.IsCancellationRequested)
-        {
-            cancellationTokenSource.Cancel();
-        }
-        cancellationTokenSource.Dispose();
-        cancellationTokenSource = null;
-    }
-    private static async ValueTask<Socket> AcceptAsync(int port, CancellationToken cancellationToken = default)
-    {
-        using var listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        listenSocket.Bind(new IPEndPoint(IPAddress.Any, port));
-        listenSocket.LingerState = new LingerOption(false, 0);
-        listenSocket.Listen(1);
-
-        return await listenSocket.AcceptAsync(cancellationToken).ConfigureAwait(false);
-    }
-    private static async ValueTask<Socket> ConnectAsync(EndPoint remoteEndPoint, CancellationToken cancellationToken = default)
-    {
-        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        try
-        {
-            await socket.ConnectAsync(remoteEndPoint, cancellationToken).ConfigureAwait(false);
-        }
-        catch { /* Ignore all exceptions. */ }
-        if (!socket.Connected)
-        {
-            socket.Shutdown(SocketShutdown.Both);
-            socket.Close();
-        }
-        return socket;
     }
 }
