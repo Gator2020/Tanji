@@ -8,13 +8,15 @@ using Tanji.Core.Cryptography.Ciphers;
 
 namespace Tanji.Infrastructure.Services.Implementations;
 
-public sealed class FlashPacketSpoolerService : IPacketSpoolerService
+public sealed class FlashPacketMiddlemanService : IPacketMiddlemanService
 {
-    private readonly ILogger<FlashPacketSpoolerService> _logger;
+    private readonly ILogger<FlashPacketMiddlemanService> _logger;
 
     public Guid Id { get; }
+    public bool IsInterceptingOutgoing { get; set; } = true;
+    public bool IsInterceptingIncoming { get; set; } = true;
 
-    public FlashPacketSpoolerService(ILogger<FlashPacketSpoolerService> logger)
+    public FlashPacketMiddlemanService(ILogger<FlashPacketMiddlemanService> logger)
     {
         _logger = logger;
 
