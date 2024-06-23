@@ -127,7 +127,6 @@ public sealed class ConnectionHandlerService : IConnectionHandlerService
         payload[index++] = 0x05;
         payload[index++] = 0x01;
         payload[index++] = 0x00;
-
         payload[index++] = (byte)(targetEndPoint.AddressFamily == AddressFamily.InterNetwork ? 0x01 : 0x04);
 
         // Destination Address
@@ -149,9 +148,7 @@ public sealed class ConnectionHandlerService : IConnectionHandlerService
         byte[] finalResponseBuffer = new byte[byte.MaxValue];
         received = await proxiedNode.ReceiveAsync(finalResponseBuffer, cancellationToken);
 
-        if (received < 2 || response[1] != 0x00) return false;
-
-        return true;
+        return received >= 2 && response[1] == 0x00;
     }
 
     private static IPEndPoint? ParseRemoteEndPoint(IHFormat packetFormat, ReadOnlySpan<byte> packetSpan)
