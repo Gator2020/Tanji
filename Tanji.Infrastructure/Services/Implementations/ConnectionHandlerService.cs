@@ -1,15 +1,16 @@
 ﻿using System.Net;
 using System.Text;
 using System.Net.Sockets;
+using System.Diagnostics;
 using System.Collections.ObjectModel;
 
 using Tanji.Core;
 using Tanji.Core.Net;
 using Tanji.Core.Canvas;
-using Tanji.Core.Net.Buffers;
-using Tanji.Core.Net.Formats;
 using Tanji.Infrastructure.Factories;
+using Tanji.Infrastructure.Configuration;
 
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 
 using CommunityToolkit.HighPerformance.Buffers;
@@ -18,26 +19,35 @@ namespace Tanji.Infrastructure.Services.Implementations;
 
 public sealed class ConnectionHandlerService : IConnectionHandlerService
 {
+    private static ReadOnlySpan<byte> XDPRequestBytes => "<policy-file-request/>\0"u8;
+    private static readonly ReadOnlyMemory<byte> XDPResponseBytes = Encoding.UTF8.GetBytes("<cross-domain-policy><allow-access-from domain=\"*\" to-ports=\"*\"/></cross-domain-policy>\0");
+
+    private readonly TanjiOptions _options;
     private readonly IClientHandlerService _clientHandler;
     private readonly IConnectionFactory _connectionFactory;
     private readonly ILogger<ConnectionHandlerService> _logger;
+    private readonly IRemoteEndPointResolverService<HotelEndPoint> _endPointResolver;
 
-    public ObservableCollection<IHConnection> Connections { get; } = [];
+    public ObservableCollection<HConnection> Connections { get; } = [];
 
     public string? Username { get; } = null;
     public string? Password { get; } = null;
     public IPEndPoint? Socks5EndPoint { get; }
 
     public ConnectionHandlerService(ILogger<ConnectionHandlerService> logger,
+        IOptions<TanjiOptions> options,
         IConnectionFactory connectionFactory,
-        IClientHandlerService clientHandler)
+        IClientHandlerService clientHandler,
+        IRemoteEndPointResolverService<HotelEndPoint> endPointResolver)
     {
         _logger = logger;
+        _options = options.Value;
         _clientHandler = clientHandler;
+        _endPointResolver = endPointResolver;
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<IHConnection> LaunchAndInterceptConnectionAsync(string ticket, HConnectionContext context, CancellationToken cancellationToken = default)
+    public async Task<HConnection> LaunchAndInterceptConnectionAsync(string ticket, HConnectionContext context, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(ticket))
         {
@@ -45,41 +55,90 @@ public sealed class ConnectionHandlerService : IConnectionHandlerService
             ThrowHelper.ThrowArgumentNullException(nameof(ticket));
         }
 
-        IHConnection connection = _connectionFactory.Create(context);
-        // Begin intercepting for connection attempts from the client before launching the client.
-        Task interceptLocalConnectionTask = connection.InterceptLocalConnectionAsync(cancellationToken);
-        _ = await _clientHandler.LaunchClientAsync(context.Platform, ticket, context.ClientPath).ConfigureAwait(false);
+        Task<HNode?> acceptLocalTask = AcceptLocalNodeAsync(context, _options.GameListenPort, cancellationToken);
+        using Process clientProcess = await _clientHandler.LaunchClientAsync(context.Platform, ticket, context.ClientPath).ConfigureAwait(false);
 
-        // Wait for the intercepted connection
-        await interceptLocalConnectionTask.ConfigureAwait(false);
-        if (connection.Local == null || !connection.Local.IsConnected)
+        HNode? local = await acceptLocalTask.ConfigureAwait(false);
+        if (local == null || !local.IsConnected)
         {
-            _logger.LogError("Local connection to the client has not been established.");
-            throw new Exception("Local connection to the client has not been established.");
+            _logger.LogError("Failed to intercept the local connection attempt from the client.");
+            throw new Exception("Failed to intercept the local connection attempt from the client.");
         }
 
-        if (context.AppliedPatchingOptions.Patches.HasFlag(HPatches.InjectAddressShouter))
+        HotelEndPoint remoteEndPoint = context.AppliedPatchingOptions.Patches.HasFlag(HPatches.InjectAddressShouter)
+            ? await _endPointResolver.ResolveAsync(local, context, cancellationToken).ConfigureAwait(false)
+            : await _endPointResolver.ResolveAsync(ticket, cancellationToken).ConfigureAwait(false);
+
+        if (remoteEndPoint == null)
         {
-            using var writer = new ArrayPoolBufferWriter<byte>(32);
-            int written = await connection.Local.ReceivePacketAsync(writer, cancellationToken).ConfigureAwait(false);
-
-            IPEndPoint? remoteEndPoint = ParseRemoteEndPoint(context.SendPacketFormat, writer.WrittenSpan);
-            if (remoteEndPoint == null)
-            {
-                _logger.LogError("Failed to parse the remote endpoint from the intercepted packet.");
-                throw new Exception("Failed to parse the remote endpoint from the intercepted packet.");
-            }
-
-            await connection.EstablishRemoteConnectionAsync(Socks5EndPoint ?? remoteEndPoint, cancellationToken).ConfigureAwait(false);
-            if (Socks5EndPoint != null)
-            {
-                bool wasProxiedSuccessfully = await TryApplyProxyAsync(connection.Remote!, remoteEndPoint!, Username!, Password!, cancellationToken).ConfigureAwait(false);
-            }
-            _ = connection.AttachNodesAsync(cancellationToken);
+            _logger.LogError("Failed to resolve the remote address from the address shouting mechanism.");
+            throw new Exception("Failed to resolve the remote address from the address shouting mechanism.");
         }
+
+        // TODO: Use ProxyFactory to acquire proxy instances to apply to the remote connection.
+
+        HNode remote = await EstablishRemoteConnectionAsync(context, remoteEndPoint, cancellationToken).ConfigureAwait(false);
+        HConnection connection = _connectionFactory.Create(local, remote, context);
 
         Connections.Add(connection);
         return connection;
+    }
+
+    public static async Task<HNode?> AcceptLocalNodeAsync(HConnectionContext context, int port, CancellationToken cancellationToken = default)
+    {
+        HNode? local = null;
+        int listenSkipAmount = context.MinimumConnectionAttempts;
+        while (!cancellationToken.IsCancellationRequested && (local == null || local.IsDisposed))
+        {
+            Socket localSocket = await AcceptAsync(port, cancellationToken).ConfigureAwait(false);
+            local = new HNode(localSocket, context.ReceivePacketFormat);
+
+            if (--listenSkipAmount > 0)
+            {
+                local.Dispose();
+                continue;
+            }
+
+            if (context.IsWebSocketConnection)
+            {
+                if (context.WebSocketServerCertificate == null)
+                {
+                    ThrowHelper.ThrowNullReferenceException("No certificate was provided for local authentication using the WebSocket Secure protocol.");
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                await local.UpgradeToWebSocketServerAsync(context.WebSocketServerCertificate, cancellationToken).ConfigureAwait(false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (context.IsFakingPolicyRequest)
+            {
+                using var buffer = MemoryOwner<byte>.Allocate(512);
+
+                int received = await local.ReceiveAsync(buffer.Memory, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!buffer.Span.Slice(0, received).SequenceEqual(XDPRequestBytes))
+                {
+                    ThrowHelper.ThrowNotSupportedException("Expected cross-domain policy request.");
+                }
+
+                await local.SendAsync(XDPResponseBytes, cancellationToken).ConfigureAwait(false);
+                local.Dispose();
+            }
+        }
+        return local;
+    }
+    public static async Task<HNode> EstablishRemoteConnectionAsync(HConnectionContext context, IPEndPoint remoteEndPoint, CancellationToken cancellationToken = default)
+    {
+        Socket remoteSocket = await ConnectAsync(remoteEndPoint, cancellationToken).ConfigureAwait(false);
+        var remote = new HNode(remoteSocket, context.ReceivePacketFormat);
+
+        if (context.IsWebSocketConnection)
+        {
+            await remote.UpgradeToWebSocketClientAsync(context.WebSocketClientCertificate, cancellationToken).ConfigureAwait(false);
+        }
+        return remote;
     }
 
     private static async ValueTask<Socket> AcceptAsync(int port, CancellationToken cancellationToken = default)
@@ -173,20 +232,5 @@ public sealed class ConnectionHandlerService : IConnectionHandlerService
         received = await proxiedNode.ReceiveAsync(finalResponseBuffer, cancellationToken);
 
         return received >= 2 && response[1] == 0x00;
-    }
-
-    private static IPEndPoint? ParseRemoteEndPoint(IHFormat packetFormat, ReadOnlySpan<byte> packetSpan)
-    {
-        var pktReader = new HPacketReader(packetFormat, packetSpan);
-        string hostNameOrAddress = pktReader.ReadUTF8().Split('\0')[0];
-        int port = pktReader.Read<int>();
-
-        if (!IPAddress.TryParse(hostNameOrAddress, out IPAddress? address))
-        {
-            IPAddress[] addresses = Dns.GetHostAddresses(hostNameOrAddress);
-            if (addresses.Length > 0) address = addresses[0];
-        }
-
-        return address != null ? new IPEndPoint(address, port) : null;
     }
 }
