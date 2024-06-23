@@ -41,7 +41,7 @@ public sealed class RemoteHotelEndPointResolverService : IRemoteEndPointResolver
     }
     public async Task<HotelEndPoint> ResolveAsync(HNode local, HConnectionContext context, CancellationToken cancellationToken = default)
     {
-        using var writer = new ArrayPoolBufferWriter<byte>(32);
+        using var writer = new ArrayPoolBufferWriter<byte>(128);
         _ = await local.ReceivePacketAsync(writer, cancellationToken).ConfigureAwait(false);
 
         HotelEndPoint? remoteEndPoint = await ParseRemoteEndPointAsync(context.SendPacketFormat, writer.WrittenSpan).ConfigureAwait(false);
