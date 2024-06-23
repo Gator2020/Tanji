@@ -6,5 +6,5 @@ namespace Tanji.Core.API;
 public interface IInstaller
 {
     IGame Game { get; }
-    IHConnection Connection { get; }
+    HConnection Connection { get; }
 }

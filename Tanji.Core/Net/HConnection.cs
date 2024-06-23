@@ -6,10 +6,7 @@ using CommunityToolkit.HighPerformance.Buffers;
 
 namespace Tanji.Core.Net;
 
-/// <summary>
-/// Represents a reusable 'bridge' that transfers data to/from two separate <see cref="HNode"/> instances.
-/// </summary>
-public sealed class HConnection : IHConnection
+public sealed class HConnection : IDisposable
 {
     private static ReadOnlySpan<byte> XDPRequestBytes => "<policy-file-request/>\0"u8;
     private static readonly ReadOnlyMemory<byte> XDPResponseBytes = Encoding.UTF8.GetBytes("<cross-domain-policy><allow-access-from domain=\"*\" to-ports=\"*\"/></cross-domain-policy>\0");
