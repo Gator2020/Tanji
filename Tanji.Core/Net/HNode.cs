@@ -47,19 +47,25 @@ public sealed class HNode : IDisposable
     public required IHFormat ReceivePacketFormat { get; init; }
 
     [SetsRequiredMembers]
-    public HNode(Socket socket, IHFormat receivePacketFormat)
+    private HNode(Stream socketStream, IHFormat receivePacketFormat)
     {
+        ReceivePacketFormat = receivePacketFormat;
+
+        _socketStream = socketStream;
+        _sendSemaphore = new SemaphoreSlim(1, 1);
+        _receiveSemaphore = new SemaphoreSlim(1, 1);
+    }
+
+    [SetsRequiredMembers]
+    public HNode(Socket socket, IHFormat receivePacketFormat)
+        : this(new NetworkStream(socket, true), receivePacketFormat)
+    {
+        _socket = socket;
+
         socket.NoDelay = true;
         socket.LingerState = new LingerOption(false, 0);
 
-        _socket = socket;
-        _socketStream = new NetworkStream(socket, true);
-
-        _sendSemaphore = new SemaphoreSlim(1, 1);
-        _receiveSemaphore = new SemaphoreSlim(1, 1);
-
         RemoteEndPoint = socket.RemoteEndPoint;
-        ReceivePacketFormat = receivePacketFormat;
     }
 
     public async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
