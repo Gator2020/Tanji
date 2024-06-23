@@ -197,7 +197,7 @@ public sealed class HNode : IDisposable
         return totalReceived;
     }
 
-    public async Task<bool> UpgradeToWebSocketClientAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> UpgradeToWebSocketClientAsync(X509Certificate? certificate, CancellationToken cancellationToken = default)
     {
         static string GenerateWebSocketKey()
         {
@@ -251,8 +251,15 @@ public sealed class HNode : IDisposable
 
         // Initialize the second secure tunnel layer where ONLY the WebSocket payload data will be read/written from/to.
         secureSocketStream = new SslStream(_socketStream, false);
-
         _socketStream = secureSocketStream; // This stream layer will decrypt/encrypt the payload using the WebSocket protocol.
+
+        if (certificate != null)
+        {
+            X509CertificateCollection certificates = sslClientAuthOptions.ClientCertificates ?? [];
+            sslClientAuthOptions.ClientCertificates = certificates;
+
+            certificates.Add(certificate);
+        }
         await secureSocketStream.AuthenticateAsClientAsync(sslClientAuthOptions, cancellationToken).ConfigureAwait(false);
 
         return IsUpgraded = secureSocketStream.IsAuthenticated;
