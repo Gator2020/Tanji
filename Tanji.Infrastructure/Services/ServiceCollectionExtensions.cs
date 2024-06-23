@@ -22,13 +22,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IConnectionFactory, ConnectionFactory>();
 
         // Singleton Services
+        services.AddSingleton<IMiddleman, FlashPacketMiddlemanService>();
         services.AddSingleton<IClientHandlerService, ClientHandlerService>();
         services.AddSingleton<IWebInterceptionService, EavesdropInterceptionService>();
         services.AddSingleton<IRemoteEndPointResolverService<HotelEndPoint>, RemoteHotelEndPointResolverService>();
         services.AddSingleton<IConnectionHandlerService, ConnectionHandlerService>();
-
-        // Scoped Services
-        services.AddScoped<IPacketSpoolerService, FlashPacketSpoolerService>();
 
         // View Models
         services.AddSingleton<ConnectionViewModel>();
