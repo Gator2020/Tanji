@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 
-using Tanji.Core.Net;
 using Tanji.Core.Canvas;
+using Tanji.Core.Net.Interception;
 using Tanji.Infrastructure.Services;
 using Tanji.Infrastructure.Configuration;
 
