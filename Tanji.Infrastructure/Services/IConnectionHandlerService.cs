@@ -6,7 +6,7 @@ namespace Tanji.Infrastructure.Services;
 
 public interface IConnectionHandlerService
 {
-    ObservableCollection<IHConnection> Connections { get; }
+    ObservableCollection<HConnection> Connections { get; }
 
-    Task<IHConnection> LaunchAndInterceptConnectionAsync(string ticket, HConnectionContext context, CancellationToken cancellationToken = default);
+    Task<HConnection> LaunchAndInterceptConnectionAsync(string ticket, HConnectionContext context, CancellationToken cancellationToken = default);
 }
