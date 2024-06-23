@@ -353,5 +353,6 @@ public sealed class HNode : IDisposable
         }
         else cipher.Process(source, destination);
     }
+
     private static bool AlwaysValidateRemoteCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors) => true;
 }
