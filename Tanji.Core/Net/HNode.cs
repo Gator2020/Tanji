@@ -23,7 +23,7 @@ public sealed class HNode : IDisposable
     private static ReadOnlySpan<byte> _secWebSocketKeyBytes => "Sec-WebSocket-Key: "u8;
     private static ReadOnlySpan<byte> _upgradeWebSocketResponseBytes => "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: "u8;
 
-    private readonly Socket _socket;
+    private readonly Socket? _socket;
     private readonly SemaphoreSlim _sendSemaphore, _receiveSemaphore;
 
     private bool _disposed;
