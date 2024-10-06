@@ -1,0 +1,58 @@
+public Process MainProc{get; set;}
+public char PostMessage()
+{
+  Desktop.Robot.Robot.WM_char = new Desktop.Robot.Robot();
+  WM_char.CombineKeys(Desktop.robot.robot.Key.Control,Desktop.robot.robot.key.V);
+  WM_char.CombineKeys(Desktop.robot.robot.Key.Enter, Desktop.robot.robot.key.Enter);
+  
+  return PostMessage();
+  
+}
+public string SetIndex(byte[] Server, byte[] Client)
+
+{
+  for(int i = 0; i<Server.Length;i++)
+  {
+    Client[i]+=Server[i];
+  }
+  
+  return "";
+}
+public static IntPtr InterceptClient(char Message,socket e)
+{
+string path = "";
+  
+OpenFileDialog AccesFile =  new OpenFileDialog();
+  AccesFile.FileName = OFD.FileName;
+   byte[] Buffer = new byte[] { (byte)int.Parse(Encoding.ASCII.GetBytes(File.ReadAllBytes(MainProc.ProcessName).ToString())) };
+  using(var Memstream = new MemoryStream(Buffer,0,Buffer.Length))
+  {
+  
+      foreach(byte b in Buffer)
+ {
+     var Data = (int)b;
+     byte[] Hwnd = new byte[] { (byte)Data ,0x0D,(byte)e.SendBufferSize,(byte)e.RecieveBufferSize};
+        SetIndex(Buffer,Hwnd);
+        SetIndex(Hwnd,Buffer);
+        int rec = e.Recieve(Hwnd,0,Hwnd.Length);
+        Array.Resize(ref Hwnd, rec);
+        foreach(char c in Encoding.ASCII.getString(Hwnd,0,rec)
+                {
+                  string ReplaceLine = Encoding.ASCII.getString(Hwnd,0,rec).Replace(c,PostMessage());
+            BinaryWriter BW = new BinaryWriter(new MemoryStream(Buffer));
+                  BW.write(Encoding.Default.GetBytes(ReplaceLine));
+                }
+
+        Memstream.Read(Hwnd,0,Hwnd.Length);
+        
+        
+ }
+    
+  }
+  
+return Intptr.Zero;
+  
+}
+public void AcceptSocket(socket e)
+{
+}
